@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+
+<head lang="en">
+    <title>Prayer Time Settings</title>
+    <meta charset="utf-8" />
+    <script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
+</head>
+
+<body>
+    <!--
+        These settings are persisted as "action settings" and delivered to the plugin as
+        payload.settings. The plugin uses them to call the prayer times API.
+        Documentation for the components: https://sdpi-components.dev/docs/components
+    -->
+    <sdpi-item label="City">
+        <sdpi-textfield setting="city" placeholder="e.g., London"></sdpi-textfield>
+    </sdpi-item>
+
+    <sdpi-item label="Country">
+        <sdpi-textfield setting="country" placeholder="e.g., United Kingdom"></sdpi-textfield>
+    </sdpi-item>
+
+    <sdpi-item label="Prayer">
+        <sdpi-select setting="prayer" default="Fajr">
+            <option value="Fajr">Fajr</option>
+            <option value="Dhuhr">Dhuhr</option>
+            <option value="Asr">Asr</option>
+            <option value="Maghrib">Maghrib</option>
+            <option value="Isha">Isha</option>
+        </sdpi-select>
+    </sdpi-item>
+
+    <sdpi-item label="Method">
+        <sdpi-select setting="method" default="4">
+            <option value="0">Shia Ithna-Ashari</option>
+            <option value="1">University of Islamic Sciences, Karachi</option>
+            <option value="2">Islamic Society of North America</option>
+            <option value="3">Muslim World League</option>
+            <option value="4">Umm al-Qura University, Makkah</option>
+            <option value="5">Egyptian General Authority of Survey</option>
+            <option value="7">Institute of Geophysics, Univ. of Tehran</option>
+            <option value="8">Gulf Region</option>
+            <option value="9">Kuwait</option>
+            <option value="10">Qatar</option>
+            <option value="11">Majlis Ugama Islam Singapura</option>
+            <option value="12">Union Organization islamic de France</option>
+            <option value="13">Diyanet Isleri Baskanligi, Turkey</option>
+            <option value="14">Spiritual Administration of Muslims of Russia</option>
+        </sdpi-select>
+    </sdpi-item>
+
+    <sdpi-item label="Madhab">
+        <sdpi-select setting="madhab" default="0">
+            <option value="0">Shafi (Standard)</option>
+            <option value="1">Hanafi</option>
+        </sdpi-select>
+    </sdpi-item>
+
+    <sdpi-item label="Time Format">
+        <sdpi-select setting="timeFormat" default="24h">
+            <option value="24h">24-hour</option>
+            <option value="12h">12-hour</option>
+        </sdpi-select>
+    </sdpi-item>
+
+    <sdpi-item label="Show Prayer Name">
+        <sdpi-checkbox setting="showPrayerName" default="true"></sdpi-checkbox>
+    </sdpi-item>
+
+    <sdpi-item label="Refresh (minutes)">
+        <sdpi-range setting="refreshMinutes" min="1" max="60" step="1" default="10" showlabels></sdpi-range>
+    </sdpi-item>
+</body>
+
+</html>

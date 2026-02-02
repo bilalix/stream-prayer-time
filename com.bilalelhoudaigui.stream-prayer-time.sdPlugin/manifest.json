@@ -4,17 +4,17 @@
 	"Author": "Bilal El Houdaigui",
 	"Actions": [
 		{
-			"Name": "Counter",
-			"UUID": "com.bilalelhoudaigui.stream-prayer-time.increment",
-			"Icon": "imgs/actions/counter/icon",
-			"Tooltip": "Displays a count, which increments by one on press.",
-			"PropertyInspectorPath": "ui/increment-counter.html",
+			"Name": "Prayer Time",
+			"UUID": "com.bilalelhoudaigui.stream-prayer-time.prayer-time",
+			"Icon": "imgs/actions/prayer-time/icon",
+			"Tooltip": "Shows a single prayer time for a chosen location.",
+			"PropertyInspectorPath": "ui/prayer-time.html",
 			"Controllers": [
 				"Keypad"
 			],
 			"States": [
 				{
-					"Image": "imgs/actions/counter/key",
+					"Image": "imgs/actions/prayer-time/key",
 					"TitleAlignment": "middle"
 				}
 			]

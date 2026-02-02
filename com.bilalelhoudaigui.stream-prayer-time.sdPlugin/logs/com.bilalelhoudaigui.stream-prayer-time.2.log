@@ -1,5 +1,0 @@
-2026-02-02T17:38:23.604Z DEBUG RegistrationParameters: port=28196
-2026-02-02T17:38:23.605Z DEBUG RegistrationParameters: pluginUUID=b3f3c7b84b4c3a617f73c8ba2b990b55
-2026-02-02T17:38:23.606Z DEBUG RegistrationParameters: registerEvent=registerPlugin
-2026-02-02T17:38:23.606Z DEBUG RegistrationParameters: info={"application":{"font":"Segoe UI","language":"en","platform":"windows","platformVersion":"10.0.26200","version":"7.2.1.22472"},"colors":{"buttonMouseOverBackgroundColor":"#464646FF","buttonPressedBackgroundColor":"#303030FF","buttonPressedBorderColor":"#646464FF","buttonPressedTextColor":"#969696FF","highlightColor":"#0078FFFF"},"devicePixelRatio":1,"devices":[{"id":"f79b94a5429159f608a13b8d21708d32","name":"Stream Deck","size":{"columns":5,"rows":3},"type":0}],"plugin":{"uuid":"com.bilalelhoudaigui.stream-prayer-time","version":"0.1.0.0"}}
-2026-02-02T17:38:23.615Z TRACE Connection: {"device":"f79b94a5429159f608a13b8d21708d32","deviceInfo":{"name":"Stream Deck","size":{"columns":5,"rows":3},"type":0},"event":"deviceDidConnect"}

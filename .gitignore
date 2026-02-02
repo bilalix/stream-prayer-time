@@ -19,6 +19,7 @@ out/
 # -----------------------------
 *.sdPlugin/bin/
 *.sdPlugin/*.log
+*.log
 
 # If you generate icons dynamically
 *.sdPlugin/**/*.png~
