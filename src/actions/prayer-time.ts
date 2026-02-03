@@ -39,6 +39,11 @@ type CachedTimings = {
 	timings: Timings;
 };
 
+type CachedGeocode = {
+	fetchedAt: number;
+	result: GeocodeResult;
+};
+
 /**
  * Displays a single prayer time (e.g., Fajr) on the Stream Deck key.
  *
@@ -51,6 +56,7 @@ type CachedTimings = {
 export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 	private readonly updateTimers = new Map<string, NodeJS.Timeout>();
 	private readonly timingsCache = new Map<string, CachedTimings>();
+	private readonly geocodeCache = new Map<string, CachedGeocode>();
 
 	override async onWillAppear(ev: WillAppearEvent<PrayerSettings>): Promise<void> {
 		// Make sure we have a full settings object and persist defaults on first run.
@@ -83,7 +89,8 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 	override async onKeyDown(ev: KeyDownEvent<PrayerSettings>): Promise<void> {
 		// Treat a key press as a manual refresh: clear cache for this location and update.
 		const settings = this.normalizeSettings(ev.payload.settings);
-		this.timingsCache.delete(this.buildCacheKey(settings));
+		const location = await this.geocode(settings);
+		this.timingsCache.delete(this.buildCacheKey(settings, location));
 		await this.refreshTitle(ev.action, settings);
 	}
 
@@ -146,7 +153,8 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 	 * Gets timings from the cache if still fresh; otherwise calls the API.
 	 */
 	private async getTimings(settings: Required<PrayerSettings>): Promise<Timings> {
-		const cacheKey = this.buildCacheKey(settings);
+		const location = await this.geocode(settings);
+		const cacheKey = this.buildCacheKey(settings, location);
 		const now = Date.now();
 		const dateKey = this.getLocalDateKey();
 
@@ -157,21 +165,25 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 			return cached.timings;
 		}
 
-		const timings = await this.fetchTimings(settings);
+		const timings = await this.fetchTimings(settings, location);
 		this.timingsCache.set(cacheKey, { dateKey, fetchedAt: now, timings });
 		return timings;
 	}
 
 	/**
-	 * Calls the Aladhan API for prayer timings by city and country.
+	 * Calls the Aladhan API for prayer timings by latitude and longitude.
 	 * Docs: https://aladhan.com/prayer-times-api
 	 */
-	private async fetchTimings(settings: Required<PrayerSettings>): Promise<Timings> {
-		const url = new URL("https://api.aladhan.com/v1/timingsByCity");
-		url.searchParams.set("city", settings.city);
-		url.searchParams.set("country", settings.country);
+	private async fetchTimings(
+		settings: Required<PrayerSettings>,
+		location: GeocodeResult,
+	): Promise<Timings> {
+		const url = new URL("https://api.aladhan.com/v1/timings");
+		url.searchParams.set("latitude", location.lat);
+		url.searchParams.set("longitude", location.lon);
 		url.searchParams.set("method", String(settings.method));
 		url.searchParams.set("school", String(settings.madhab));
+		streamDeck.logger.info(`Fetching prayer timings from API: ${url.toString()}`);
 
 		const response = await fetch(url);
 		if (!response.ok) {
@@ -183,7 +195,58 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 			throw new Error(`API response missing timings`);
 		}
 
+		streamDeck.logger.info(`Fetched new prayer timings for ${settings.city}, ${settings.country}`);
+
+		streamDeck.logger.info(`API response: ${JSON.stringify(data)}`);
+
 		return data.data.timings;
+	}
+
+	/**
+	 * Resolves city/country to coordinates using Nominatim.
+	 * We cache results to avoid repeated geocoding calls.
+	 */
+	private async geocode(settings: Required<PrayerSettings>): Promise<GeocodeResult> {
+		const cacheKey = this.buildGeocodeKey(settings);
+		const cached = this.geocodeCache.get(cacheKey);
+		const now = Date.now();
+		const maxAgeMs = 24 * 60 * 60 * 1000; // 24h cache for geocoding
+
+		if (cached && now - cached.fetchedAt < maxAgeMs) {
+			return cached.result;
+		}
+
+		const url = new URL("https://nominatim.openstreetmap.org/search");
+		url.searchParams.set("format", "json");
+		url.searchParams.set("limit", "1");
+		url.searchParams.set("city", settings.city);
+		url.searchParams.set("country", settings.country);
+
+		const response = await fetch(url, {
+			headers: {
+				// Nominatim requires a valid User-Agent identifying the application.
+				"User-Agent": "stream-prayer-time/0.1 (Stream Deck plugin)",
+			},
+		});
+
+		if (!response.ok) {
+			throw new Error(`Geocode request failed: ${response.status} ${response.statusText}`);
+		}
+
+		const results = (await response.json()) as NominatimResult[];
+		const match = results[0];
+		if (!match?.lat || !match?.lon) {
+			throw new Error("Geocode failed: city/country not found");
+		}
+
+		const location: GeocodeResult = {
+			lat: match.lat,
+			lon: match.lon,
+			displayName: match.display_name ?? `${settings.city}, ${settings.country}`,
+		};
+
+		this.geocodeCache.set(cacheKey, { fetchedAt: now, result: location });
+		return location;
 	}
 
 	/**
@@ -210,13 +273,20 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 	/**
 	 * Generates a cache key so identical locations/methods share the same timings.
 	 */
-	private buildCacheKey(settings: Required<PrayerSettings>): string {
+	private buildCacheKey(settings: Required<PrayerSettings>, location: GeocodeResult): string {
 		return [
-			settings.city.toLowerCase(),
-			settings.country.toLowerCase(),
+			location.lat,
+			location.lon,
 			settings.method,
 			settings.madhab,
 		].join("|");
+	}
+
+	/**
+	 * Cache key for geocoding requests.
+	 */
+	private buildGeocodeKey(settings: Required<PrayerSettings>): string {
+		return [settings.city.toLowerCase(), settings.country.toLowerCase()].join("|");
 	}
 
 	/**
@@ -293,4 +363,16 @@ type AladhanResponse = {
 	data?: {
 		timings?: Timings;
 	};
+};
+
+type GeocodeResult = {
+	lat: string;
+	lon: string;
+	displayName: string;
+};
+
+type NominatimResult = {
+	lat: string;
+	lon: string;
+	display_name?: string;
 };
