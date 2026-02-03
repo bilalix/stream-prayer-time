@@ -161,3 +161,8 @@ This watches source files and restarts the Stream Deck plugin after each build.
   - Your network connection
   - City/country spelling
   - Stream Deck logs in `com.bilalelhoudaigui.stream-prayer-time.sdPlugin/logs`
+
+## Images/Icons Attribution
+
+* <a href="https://www.flaticon.com/free-icons/prayer" title="prayer icons">Prayer icons created by iconnut - Flaticon</a>
+* <a href="https://www.flaticon.com/free-icons/mosque" title="mosque icons">Mosque icons created by MEDZ - Flaticon</a>

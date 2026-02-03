@@ -4,7 +4,7 @@
 	"Author": "Bilal El Houdaigui",
 	"Actions": [
 		{
-			"Name": "Prayer Time",
+			"Name": "Add Prayer Time",
 			"UUID": "com.bilalelhoudaigui.stream-prayer-time.prayer-time",
 			"Icon": "imgs/actions/prayer-time/icon",
 			"Tooltip": "Shows a single prayer time for a chosen location.",
@@ -20,7 +20,7 @@
 			]
 		}
 	],
-	"Category": "stream-prayer-time",
+	"Category": "Prayer Time",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
 	"Description": "Simple prayer time plugin for stream deck",
