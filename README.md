@@ -169,6 +169,16 @@ npm run watch
 
 This watches source files and restarts the Stream Deck plugin after each build.
 
+## User Quick Start
+
+1) Build the plugin: `npm run build`
+2) Open Stream Deck and add the "Prayer Time" action to a key.
+3) In the Property Inspector:
+   - Set City and select Country.
+   - Choose the Prayer and calculation Method/Madhab.
+   - (Optional) Set time format, refresh interval, and offset minutes.
+4) If the key shows "Err", re-check City/Country and your network connection.
+
 ## Notes / Troubleshooting
 
 - If you previously placed the old counter action on a key, remove it and add the new "Prayer Time" action; the UUID changed.
