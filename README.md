@@ -1,13 +1,14 @@
 # Stream Prayer Time (Stream Deck Plugin)
 
-This repository contains a Stream Deck plugin that shows a single prayer time (Fajr, Dhuhr, Asr, Maghrib, or Isha) on each key. Each action instance can be configured with its own location and calculation method, and the plugin periodically refreshes the displayed time by calling the Aladhan prayer times API.
+This repository contains a Stream Deck plugin that shows a single prayer time (Fajr, Dhuhr, Asr, Maghrib, or Isha) on each key. Each action instance can be configured with its own location and calculation method, and the plugin periodically refreshes the displayed time by geocoding the city/country and calling the Aladhan prayer times API.
 
 ## What Changed (from the starter repo)
 
 - Replaced the starter "increment counter" action with a prayer-time action.
 - Added a prayer-time Property Inspector UI for settings.
 - Updated the plugin manifest to point at the new action UUID and UI.
-- Added API fetching, caching, and timed refresh logic in the action implementation.
+- Added geocoding + API fetching, caching, and timed refresh logic in the action implementation.
+- Added a country dropdown (full list) and an offset control with quick +/- buttons.
 
 Key changes are located in:
 - `src/plugin.ts` (registers the new action)
@@ -30,7 +31,9 @@ getTimings()
   |       \
   | cache  \ if cache miss or stale
   v         v
-cache hit   fetchTimings() -> Aladhan API
+cache hit   geocode() -> Nominatim
+  |                 |
+  |            fetchTimings() -> Aladhan API
   |                 |
   \-----------------/
           |
@@ -46,7 +49,7 @@ cache hit   fetchTimings() -> Aladhan API
 1) Stream Deck loads the plugin and the action appears on a key.
 2) The plugin normalizes settings (fills defaults if empty).
 3) The plugin starts a refresh timer for that key.
-4) The plugin fetches prayer times (with caching) and sets the key title.
+4) The plugin geocodes the location, fetches prayer times (with caching), and sets the key title.
 5) A key press triggers a manual refresh (and clears the cache).
 
 ### Action Lifecycle
@@ -76,19 +79,23 @@ The key title is set to either:
 - `Prayer\nTime` (two lines), or
 - `Time` (if "Show Prayer Name" is disabled)
 
-The time is formatted in 24h or 12h format and extracted from the API response string (handles suffixes like timezones).
+The time is formatted in 24h or 12h format, optional offset minutes are applied, and the value is extracted from the API response string (handles suffixes like timezones).
 
 ## API Usage
 
-The plugin calls the Aladhan API endpoint:
+The plugin calls the following endpoints:
 
-`https://api.aladhan.com/v1/timingsByCity`
+Geocoding (city + country -> lat/long):
+
+`https://nominatim.openstreetmap.org/search`
+
+Prayer timings (lat/long -> timings):
+
+`https://api.aladhan.com/v1/timings`
 
 Parameters used:
-- `city`
-- `country`
-- `method` (calculation method)
-- `school` (madhab)
+- Geocode: `city`, `country`, `format=json`, `limit=1`
+- Timings: `latitude`, `longitude`, `method` (calculation method), `school` (madhab)
 
 The API response is validated and the `timings` object is used to display the chosen prayer.
 
@@ -96,7 +103,8 @@ The API response is validated and the `timings` object is used to display the ch
 
 To avoid repeated API calls:
 
-- Results are cached per `(city, country, method, madhab)` combination.
+- Geocode results are cached per `(city, country)` combination (24h).
+- Timings are cached per `(lat, long, method, madhab)` combination.
 - The cache is valid for `refreshMinutes`.
 - Cache entries are also invalidated when the local date changes.
 
@@ -117,12 +125,13 @@ Settings are stored per key. Available fields:
 - `timeFormat` ("24h" or "12h")
 - `showPrayerName` (boolean)
 - `refreshMinutes` (number)
+- `offsetMinutes` (number, -30..+30)
 
 Default settings are defined in `src/actions/prayer-time.ts`.
 
 ### SDPI Value Parsing
 
-SDPI controls often return string values. The plugin uses a defensive `toNumber(...)` helper to parse numeric settings for `method`, `madhab`, and `refreshMinutes`.
+SDPI controls often return string values. The plugin uses a defensive `toNumber(...)` helper to parse numeric settings for `method`, `madhab`, `refreshMinutes`, and `offsetMinutes`.
 
 ## File Structure (Relevant)
 
@@ -137,6 +146,12 @@ SDPI controls often return string values. The plugin uses a defensive `toNumber(
 
 - `com.bilalelhoudaigui.stream-prayer-time.sdPlugin/ui/prayer-time.html`  
   Property Inspector controls for configuration.
+
+- `com.bilalelhoudaigui.stream-prayer-time.sdPlugin/ui/countries.js`  
+  Full country list for the dropdown.
+
+- `com.bilalelhoudaigui.stream-prayer-time.sdPlugin/ui/offset-controls.js`  
+  Offset buttons and reset behavior for the Property Inspector.
 
 ## Build & Run
 
@@ -159,8 +174,9 @@ This watches source files and restarts the Stream Deck plugin after each build.
 - If you previously placed the old counter action on a key, remove it and add the new "Prayer Time" action; the UUID changed.
 - If the title shows "Err", check:
   - Your network connection
-  - City/country spelling
+  - City/country spelling (geocode failures will surface as errors)
   - Stream Deck logs in `com.bilalelhoudaigui.stream-prayer-time.sdPlugin/logs`
+- If you see 429 (Too Many Requests), increase the refresh interval or reduce the number of keys using the action.
 
 ## Images/Icons Attribution
 
