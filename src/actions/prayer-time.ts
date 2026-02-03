@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS: Required<PrayerSettings> = {
 	showPrayerName: true,
 	timeFormat: "24h",
 	refreshMinutes: 10,
+	offsetMinutes: 0,
 };
 
 // Small cache entry so multiple keys can share a single API response.
@@ -136,7 +137,11 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 				throw new Error(`Missing timing for ${settings.prayer}`);
 			}
 
-			const formattedTime = this.formatTime(rawTime, settings.timeFormat);
+			const formattedTime = this.formatTime(
+				rawTime,
+				settings.timeFormat,
+				settings.offsetMinutes,
+			);
 			const title = settings.showPrayerName
 				? `${settings.prayer}\n${formattedTime}`
 				: formattedTime;
@@ -252,7 +257,7 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 	/**
 	 * Converts an API time string (e.g., "05:13") to 24h or 12h format.
 	 */
-	private formatTime(rawTime: string, format: TimeFormat): string {
+	private formatTime(rawTime: string, format: TimeFormat, offsetMinutes: number): string {
 		// Some APIs append timezone data like "05:13 (AST)"; we only want HH:MM.
 		const [timePart] = rawTime.split(" ");
 		const [hh, mm] = timePart.split(":").map((value) => Number(value));
@@ -261,13 +266,18 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 			return timePart;
 		}
 
+		const totalMinutes = hh * 60 + mm + offsetMinutes;
+		const wrapped = ((totalMinutes % 1440) + 1440) % 1440;
+		const hours = Math.floor(wrapped / 60);
+		const minutes = wrapped % 60;
+
 		if (format === "24h") {
-			return `${hh.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`;
+			return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
 		}
 
-		const hour12 = ((hh + 11) % 12) + 1;
-		const suffix = hh >= 12 ? "PM" : "AM";
-		return `${hour12}:${mm.toString().padStart(2, "0")} ${suffix}`;
+		const hour12 = ((hours + 11) % 12) + 1;
+		const suffix = hours >= 12 ? "PM" : "AM";
+		return `${hour12}:${minutes.toString().padStart(2, "0")} ${suffix}`;
 	}
 
 	/**
@@ -308,6 +318,7 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 		const method = this.toNumber(settings.method, DEFAULT_SETTINGS.method);
 		const madhab = this.toNumber(settings.madhab, DEFAULT_SETTINGS.madhab);
 		const refreshMinutes = this.toNumber(settings.refreshMinutes, DEFAULT_SETTINGS.refreshMinutes);
+		const offsetMinutes = this.toNumber(settings.offsetMinutes, DEFAULT_SETTINGS.offsetMinutes);
 
 		return {
 			city: settings.city?.trim() || DEFAULT_SETTINGS.city,
@@ -323,6 +334,7 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 					: DEFAULT_SETTINGS.showPrayerName,
 			timeFormat: settings.timeFormat === "12h" ? "12h" : DEFAULT_SETTINGS.timeFormat,
 			refreshMinutes: Math.max(1, refreshMinutes),
+			offsetMinutes: Math.max(-30, Math.min(30, offsetMinutes)),
 		};
 	}
 
@@ -347,6 +359,7 @@ type PrayerSettings = {
 	showPrayerName?: boolean;
 	timeFormat?: TimeFormat;
 	refreshMinutes?: number;
+	offsetMinutes?: number;
 };
 
 type Timings = {
