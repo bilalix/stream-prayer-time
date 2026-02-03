@@ -6,6 +6,35 @@
     <meta charset="utf-8" />
     <script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
     <script src="countries.js"></script>
+    <script src="offset-controls.js"></script>
+    <style>
+        .offset-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .offset-controls button {
+            padding: 4px 8px;
+            font-size: 12px;
+            color: #f2f2f2;
+            background: #2b2b2b;
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+        }
+
+        .offset-controls button:hover {
+            background: #343434;
+        }
+
+        .offset-controls button:active {
+            background: #1f1f1f;
+        }
+
+        .offset-controls sdpi-textfield {
+            min-width: 72px;
+        }
+    </style>
 </head>
 
 <body>
@@ -74,7 +103,12 @@
     </sdpi-item>
 
     <sdpi-item label="Offset (minutes)">
-        <sdpi-range setting="offsetMinutes" min="-30" max="30" step="1" default="0" showlabels></sdpi-range>
+        <div class="offset-controls">
+            <button type="button" id="offsetMinus">-5</button>
+            <sdpi-textfield id="offsetInput" setting="offsetMinutes" placeholder="0"></sdpi-textfield>
+            <button type="button" id="offsetPlus">+5</button>
+            <button type="button" id="offsetReset">Reset</button>
+        </div>
     </sdpi-item>
 </body>
 
