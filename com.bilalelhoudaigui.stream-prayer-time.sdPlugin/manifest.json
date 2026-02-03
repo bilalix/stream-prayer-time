@@ -1,5 +1,5 @@
 {
-	"Name": "stream-prayer-time",
+	"Name": "Prayer Time",
 	"Version": "1.0.0.0",
 	"Author": "Bilal El Houdaigui",
 	"Actions": [
@@ -23,7 +23,7 @@
 	"Category": "Prayer Time",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
-	"Description": "Simple prayer time plugin for stream deck",
+	"Description": "Prayer Time for Stream Deck",
 	"Icon": "imgs/plugin/marketplace",
 	"SDKVersion": 3,
 	"Software": {
