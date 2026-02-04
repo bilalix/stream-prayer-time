@@ -2,6 +2,16 @@
 
 This repository contains a Stream Deck plugin that shows a single prayer time (Fajr, Dhuhr, Asr, Maghrib, or Isha) on each key. Each action instance can be configured with its own location and calculation method, and the plugin periodically refreshes the displayed time by geocoding the city/country and calling the Aladhan prayer times API.
 
+## User Quick Start
+
+1) Build the plugin: `npm run build`
+2) Open Stream Deck and add the "Prayer Time" action to a key.
+3) In the Property Inspector:
+   - Set City and select Country.
+   - Choose the Prayer and calculation Method/Madhab.
+   - (Optional) Set time format, refresh interval, and offset minutes.
+4) If the key shows "Err", re-check City/Country and your network connection.
+
 ## What Changed (from the starter repo)
 
 - Replaced the starter "increment counter" action with a prayer-time action.
@@ -169,16 +179,6 @@ npm run watch
 
 This watches source files and restarts the Stream Deck plugin after each build.
 
-## User Quick Start
-
-1) Build the plugin: `npm run build`
-2) Open Stream Deck and add the "Prayer Time" action to a key.
-3) In the Property Inspector:
-   - Set City and select Country.
-   - Choose the Prayer and calculation Method/Madhab.
-   - (Optional) Set time format, refresh interval, and offset minutes.
-4) If the key shows "Err", re-check City/Country and your network connection.
-
 ## Notes / Troubleshooting
 
 - If you previously placed the old counter action on a key, remove it and add the new "Prayer Time" action; the UUID changed.
@@ -192,3 +192,4 @@ This watches source files and restarts the Stream Deck plugin after each build.
 
 * <a href="https://www.flaticon.com/free-icons/prayer" title="prayer icons">Prayer icons created by iconnut - Flaticon</a>
 * <a href="https://www.flaticon.com/free-icons/mosque" title="mosque icons">Mosque icons created by MEDZ - Flaticon</a>
+* <a href="https://www.needpix.com/photo/1163576/" title="islamic background">Mosque Islam Night Free Photo by StudioLabs - needpix.com</a>
