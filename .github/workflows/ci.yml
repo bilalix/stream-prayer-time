@@ -27,4 +27,4 @@ jobs:
         run: npm run build
 
       - name: Pack plugin
-        run: npx @elgato/cli streamdeck pack com.bilalelhoudaigui.stream-prayer-time.sdPlugin
+        run: npx streamdeck pack com.bilalelhoudaigui.stream-prayer-time.sdPlugin
