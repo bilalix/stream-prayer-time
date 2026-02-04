@@ -2,6 +2,8 @@
 
 This repository contains a Stream Deck plugin that shows a single prayer time (Fajr, Dhuhr, Asr, Maghrib, or Isha) on each key. Each action instance can be configured with its own location and calculation method, and the plugin periodically refreshes the displayed time by geocoding the city/country and calling the Aladhan prayer times API.
 
+![alt text](Screenshot.png)
+
 ## User Quick Start
 
 1) Build the plugin: `npm run build`
