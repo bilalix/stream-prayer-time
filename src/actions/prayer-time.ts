@@ -20,6 +20,9 @@ const PRAYER_KEY_BY_NAME: Record<PrayerName, keyof Timings> = {
 	Isha: "Isha",
 };
 
+const NOTIFICATION_IMAGE = "imgs/actions/prayer-time/notification-icon.png";
+const SIGNAL_BLINK_MS = 500;
+
 // Default settings that will be persisted the first time the action appears.
 const DEFAULT_SETTINGS: Required<PrayerSettings> = {
 	city: "Mecca",
@@ -31,13 +34,15 @@ const DEFAULT_SETTINGS: Required<PrayerSettings> = {
 	timeFormat: "24h",
 	refreshMinutes: 10,
 	offsetMinutes: 0,
+	testSignal: "",
+	signalDurationSeconds: 10,
 };
 
 // Small cache entry so multiple keys can share a single API response.
 type CachedTimings = {
 	dateKey: string;
 	fetchedAt: number;
-	timings: Timings;
+	timings: TimingsResult;
 };
 
 type CachedGeocode = {
@@ -56,8 +61,12 @@ type CachedGeocode = {
 @action({ UUID: "com.bilalelhoudaigui.stream-prayer-time.prayer-time" })
 export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 	private readonly updateTimers = new Map<string, NodeJS.Timeout>();
+	private readonly signalTimers = new Map<string, NodeJS.Timeout>();
 	private readonly timingsCache = new Map<string, CachedTimings>();
 	private readonly geocodeCache = new Map<string, CachedGeocode>();
+	private readonly signalChecksInFlight = new Set<string>();
+	private readonly lastSignalKey = new Map<string, string>();
+	private readonly lastTestSignalByAction = new Map<string, string>();
 
 	override async onWillAppear(ev: WillAppearEvent<PrayerSettings>): Promise<void> {
 		// Make sure we have a full settings object and persist defaults on first run.
@@ -66,6 +75,7 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 
 		// Start periodic updates and do an immediate refresh for the visible key.
 		this.startOrResetTimer(ev.action.id, ev.action, settings);
+		this.startOrResetSignalTimer(ev.action.id, ev.action, settings);
 		await this.refreshTitle(ev.action, settings);
 	}
 
@@ -75,6 +85,18 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 		// When the user changes settings in the Property Inspector, refresh immediately.
 		const settings = this.normalizeSettings(ev.payload.settings);
 		this.startOrResetTimer(ev.action.id, ev.action, settings);
+		this.startOrResetSignalTimer(ev.action.id, ev.action, settings);
+
+		const testSignal = ev.payload.settings.testSignal;
+		if (typeof testSignal === "string" && testSignal.trim() !== "") {
+			if (this.lastTestSignalByAction.get(ev.action.id) !== testSignal) {
+				this.lastTestSignalByAction.set(ev.action.id, testSignal);
+				await this.startBlink(ev.action, settings.signalDurationSeconds);
+			}
+
+			const clearedSettings = { ...settings, testSignal: "" };
+			await ev.action.setSettings(clearedSettings);
+		}
 		await this.refreshTitle(ev.action, settings);
 	}
 
@@ -84,6 +106,12 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 		if (timer) {
 			clearInterval(timer);
 			this.updateTimers.delete(ev.action.id);
+		}
+
+		const signalTimer = this.signalTimers.get(ev.action.id);
+		if (signalTimer) {
+			clearInterval(signalTimer);
+			this.signalTimers.delete(ev.action.id);
 		}
 	}
 
@@ -129,9 +157,9 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 			// Show a transient "Loading" state in case the API is slow.
 			await action.setTitle("Loading...");
 
-			const timings = await this.getTimings(settings);
+			const result = await this.getTimings(settings);
 			const prayerKey = PRAYER_KEY_BY_NAME[settings.prayer];
-			const rawTime = timings[prayerKey];
+			const rawTime = result.timings[prayerKey];
 
 			if (!rawTime) {
 				throw new Error(`Missing timing for ${settings.prayer}`);
@@ -157,7 +185,7 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 	/**
 	 * Gets timings from the cache if still fresh; otherwise calls the API.
 	 */
-	private async getTimings(settings: Required<PrayerSettings>): Promise<Timings> {
+	private async getTimings(settings: Required<PrayerSettings>): Promise<TimingsResult> {
 		const location = await this.geocode(settings);
 		const cacheKey = this.buildCacheKey(settings, location);
 		const now = Date.now();
@@ -182,7 +210,7 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 	private async fetchTimings(
 		settings: Required<PrayerSettings>,
 		location: GeocodeResult,
-	): Promise<Timings> {
+	): Promise<TimingsResult> {
 		const url = new URL("https://api.aladhan.com/v1/timings");
 		url.searchParams.set("latitude", location.lat);
 		url.searchParams.set("longitude", location.lon);
@@ -204,7 +232,10 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 
 		streamDeck.logger.info(`API response: ${JSON.stringify(data)}`);
 
-		return data.data.timings;
+		return {
+			timings: data.data.timings,
+			timezone: data.data.meta?.timezone,
+		};
 	}
 
 	/**
@@ -281,6 +312,153 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 	}
 
 	/**
+	 * Starts or resets a short interval that checks when the prayer time hits, then signals.
+	 */
+	private startOrResetSignalTimer(
+		context: string,
+		action: WillAppearEvent<PrayerSettings>["action"],
+		settings: Required<PrayerSettings>,
+	): void {
+		const existing = this.signalTimers.get(context);
+		if (existing) {
+			clearInterval(existing);
+		}
+
+		const timer = setInterval(() => {
+			void this.checkAndSignal(context, action, settings);
+		}, 30 * 1000);
+
+		this.signalTimers.set(context, timer);
+	}
+
+	/**
+	 * Checks if the current time matches the configured prayer time and blinks the key image.
+	 */
+	private async checkAndSignal(
+		context: string,
+		action: WillAppearEvent<PrayerSettings>["action"],
+		settings: Required<PrayerSettings>,
+	): Promise<void> {
+		if (this.signalChecksInFlight.has(context)) {
+			return;
+		}
+
+		this.signalChecksInFlight.add(context);
+		try {
+			const result = await this.getTimings(settings);
+			const prayerKey = PRAYER_KEY_BY_NAME[settings.prayer];
+			const rawTime = result.timings[prayerKey];
+			if (!rawTime) {
+				return;
+			}
+
+			const targetMinutes = this.parseTimeToMinutes(rawTime, settings.offsetMinutes);
+			if (targetMinutes === null) {
+				return;
+			}
+
+			const now = this.getCurrentMinutes(result.timezone);
+			if (now === null) {
+				return;
+			}
+
+			if (now === targetMinutes) {
+				const dateKey = this.getDateKey(result.timezone);
+				const signalKey = `${dateKey}|${settings.prayer}|${targetMinutes}`;
+				if (this.lastSignalKey.get(context) === signalKey) {
+					return;
+				}
+
+				this.lastSignalKey.set(context, signalKey);
+				await this.startBlink(action, settings.signalDurationSeconds);
+			}
+		} catch (error) {
+			streamDeck.logger.error(`Failed to signal prayer time: ${String(error)}`);
+		} finally {
+			this.signalChecksInFlight.delete(context);
+		}
+	}
+
+	private async startBlink(
+		action: WillAppearEvent<PrayerSettings>["action"],
+		durationSeconds: number,
+	): Promise<void> {
+		if (!action.isKey()) {
+			return;
+		}
+
+		const durationMs = Math.max(1, durationSeconds) * 1000;
+		let showNotification = false;
+		const interval = setInterval(() => {
+			showNotification = !showNotification;
+			void action.setImage(showNotification ? NOTIFICATION_IMAGE : undefined);
+		}, SIGNAL_BLINK_MS);
+
+		setTimeout(() => {
+			clearInterval(interval);
+			void action.setImage(undefined);
+		}, durationMs);
+	}
+
+	/**
+	 * Parses the API time string into total minutes, applying an offset.
+	 */
+	private parseTimeToMinutes(rawTime: string, offsetMinutes: number): number | null {
+		const [timePart] = rawTime.split(" ");
+		const [hh, mm] = timePart.split(":").map((value) => Number(value));
+		if (Number.isNaN(hh) || Number.isNaN(mm)) {
+			return null;
+		}
+
+		const totalMinutes = hh * 60 + mm + offsetMinutes;
+		return ((totalMinutes % 1440) + 1440) % 1440;
+	}
+
+	/**
+	 * Returns the current minutes since midnight for the given timezone (or local if missing).
+	 */
+	private getCurrentMinutes(timezone?: string): number | null {
+		try {
+			const formatter = new Intl.DateTimeFormat("en-US", {
+				timeZone: timezone,
+				hour: "2-digit",
+				minute: "2-digit",
+				hour12: false,
+			});
+			const parts = formatter.formatToParts(new Date());
+			const hourPart = parts.find((part) => part.type === "hour")?.value;
+			const minutePart = parts.find((part) => part.type === "minute")?.value;
+			const hours = Number(hourPart);
+			const minutes = Number(minutePart);
+			if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+				return null;
+			}
+			return hours * 60 + minutes;
+		} catch {
+			const now = new Date();
+			return now.getHours() * 60 + now.getMinutes();
+		}
+	}
+
+	private getDateKey(timezone?: string): string {
+		try {
+			const formatter = new Intl.DateTimeFormat("en-CA", {
+				timeZone: timezone,
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
+			});
+			const parts = formatter.formatToParts(new Date());
+			const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+			const month = parts.find((part) => part.type === "month")?.value ?? "00";
+			const day = parts.find((part) => part.type === "day")?.value ?? "00";
+			return `${year}-${month}-${day}`;
+		} catch {
+			return this.getLocalDateKey();
+		}
+	}
+
+	/**
 	 * Generates a cache key so identical locations/methods share the same timings.
 	 */
 	private buildCacheKey(settings: Required<PrayerSettings>, location: GeocodeResult): string {
@@ -335,6 +513,13 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 			timeFormat: settings.timeFormat === "12h" ? "12h" : DEFAULT_SETTINGS.timeFormat,
 			refreshMinutes: Math.max(1, refreshMinutes),
 			offsetMinutes: Math.max(-30, Math.min(30, offsetMinutes)),
+			testSignal: typeof settings.testSignal === "string" ? settings.testSignal : "",
+			signalDurationSeconds: this.clampNumber(
+				settings.signalDurationSeconds,
+				DEFAULT_SETTINGS.signalDurationSeconds,
+				1,
+				300,
+			),
 		};
 	}
 
@@ -345,6 +530,11 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 		const numeric =
 			typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
 		return Number.isFinite(numeric) ? numeric : fallback;
+	}
+
+	private clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+		const numeric = this.toNumber(value, fallback);
+		return Math.max(min, Math.min(max, numeric));
 	}
 }
 
@@ -360,6 +550,8 @@ type PrayerSettings = {
 	timeFormat?: TimeFormat;
 	refreshMinutes?: number;
 	offsetMinutes?: number;
+	testSignal?: string;
+	signalDurationSeconds?: number;
 };
 
 type Timings = {
@@ -370,11 +562,19 @@ type Timings = {
 	Isha: string;
 };
 
+type TimingsResult = {
+	timings: Timings;
+	timezone?: string;
+};
+
 type AladhanResponse = {
 	code: number;
 	status: string;
 	data?: {
 		timings?: Timings;
+		meta?: {
+			timezone?: string;
+		};
 	};
 };
 

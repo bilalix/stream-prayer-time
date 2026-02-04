@@ -7,6 +7,7 @@
     <script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
     <script src="countries.js"></script>
     <script src="offset-controls.js"></script>
+    <script src="test-signal.js"></script>
     <style>
         .offset-controls {
             display: flex;
@@ -33,6 +34,23 @@
 
         .offset-controls sdpi-textfield {
             min-width: 72px;
+        }
+
+        .test-signal button {
+            padding: 4px 10px;
+            font-size: 12px;
+            color: #f2f2f2;
+            background: #2b2b2b;
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+        }
+
+        .test-signal button:hover {
+            background: #343434;
+        }
+
+        .test-signal button:active {
+            background: #1f1f1f;
         }
     </style>
 </head>
@@ -108,6 +126,17 @@
             <sdpi-textfield id="offsetInput" setting="offsetMinutes" placeholder="0"></sdpi-textfield>
             <button type="button" id="offsetPlus">+5</button>
             <button type="button" id="offsetReset">Reset</button>
+        </div>
+    </sdpi-item>
+
+    <sdpi-item label="Signal Duration (seconds)">
+        <sdpi-range setting="signalDurationSeconds" min="5" max="60" step="1" default="10" showlabels></sdpi-range>
+    </sdpi-item>
+
+    <sdpi-item label="Preview Alert">
+        <div class="test-signal">
+            <button type="button" id="testSignalButton">Preview Blink</button>
+            <sdpi-textfield id="testSignalField" setting="testSignal" style="display:none"></sdpi-textfield>
         </div>
     </sdpi-item>
 </body>
