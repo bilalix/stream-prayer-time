@@ -31,6 +31,7 @@ const DEFAULT_SETTINGS: Required<PrayerSettings> = {
 	madhab: 0, // 0 = Shafi (default), 1 = Hanafi
 	prayer: "Fajr",
 	showPrayerName: true,
+	notificationsEnabled: true,
 	timeFormat: "24h",
 	refreshMinutes: 10,
 	offsetMinutes: 0,
@@ -75,7 +76,9 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 
 		// Start periodic updates and do an immediate refresh for the visible key.
 		this.startOrResetTimer(ev.action.id, ev.action, settings);
-		this.startOrResetSignalTimer(ev.action.id, ev.action, settings);
+		if (settings.notificationsEnabled) {
+			this.startOrResetSignalTimer(ev.action.id, ev.action, settings);
+		}
 		await this.refreshTitle(ev.action, settings);
 	}
 
@@ -85,13 +88,19 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 		// When the user changes settings in the Property Inspector, refresh immediately.
 		const settings = this.normalizeSettings(ev.payload.settings);
 		this.startOrResetTimer(ev.action.id, ev.action, settings);
-		this.startOrResetSignalTimer(ev.action.id, ev.action, settings);
+		if (settings.notificationsEnabled) {
+			this.startOrResetSignalTimer(ev.action.id, ev.action, settings);
+		} else {
+			this.clearSignalTimer(ev.action.id);
+		}
 
 		const testSignal = ev.payload.settings.testSignal;
 		if (typeof testSignal === "string" && testSignal.trim() !== "") {
 			if (this.lastTestSignalByAction.get(ev.action.id) !== testSignal) {
 				this.lastTestSignalByAction.set(ev.action.id, testSignal);
-				await this.startBlink(ev.action, settings.signalDurationSeconds);
+				if (settings.notificationsEnabled) {
+					await this.startBlink(ev.action, settings.signalDurationSeconds);
+				}
 			}
 
 			const clearedSettings = { ...settings, testSignal: "" };
@@ -108,11 +117,7 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 			this.updateTimers.delete(ev.action.id);
 		}
 
-		const signalTimer = this.signalTimers.get(ev.action.id);
-		if (signalTimer) {
-			clearInterval(signalTimer);
-			this.signalTimers.delete(ev.action.id);
-		}
+		this.clearSignalTimer(ev.action.id);
 	}
 
 	override async onKeyDown(ev: KeyDownEvent<PrayerSettings>): Promise<void> {
@@ -319,16 +324,21 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 		action: WillAppearEvent<PrayerSettings>["action"],
 		settings: Required<PrayerSettings>,
 	): void {
-		const existing = this.signalTimers.get(context);
-		if (existing) {
-			clearInterval(existing);
-		}
+		this.clearSignalTimer(context);
 
 		const timer = setInterval(() => {
 			void this.checkAndSignal(context, action, settings);
 		}, 30 * 1000);
 
 		this.signalTimers.set(context, timer);
+	}
+
+	private clearSignalTimer(context: string): void {
+		const existing = this.signalTimers.get(context);
+		if (existing) {
+			clearInterval(existing);
+			this.signalTimers.delete(context);
+		}
 	}
 
 	/**
@@ -510,6 +520,10 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 				typeof settings.showPrayerName === "boolean"
 					? settings.showPrayerName
 					: DEFAULT_SETTINGS.showPrayerName,
+			notificationsEnabled:
+				typeof settings.notificationsEnabled === "boolean"
+					? settings.notificationsEnabled
+					: DEFAULT_SETTINGS.notificationsEnabled,
 			timeFormat: settings.timeFormat === "12h" ? "12h" : DEFAULT_SETTINGS.timeFormat,
 			refreshMinutes: Math.max(1, refreshMinutes),
 			offsetMinutes: Math.max(-30, Math.min(30, offsetMinutes)),
@@ -547,6 +561,7 @@ type PrayerSettings = {
 	madhab?: number;
 	prayer?: PrayerName;
 	showPrayerName?: boolean;
+	notificationsEnabled?: boolean;
 	timeFormat?: TimeFormat;
 	refreshMinutes?: number;
 	offsetMinutes?: number;
