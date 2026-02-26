@@ -15,7 +15,8 @@
 			"States": [
 				{
 					"Image": "imgs/actions/prayer-time/key",
-					"TitleAlignment": "middle"
+					"FontSize": 14,
+					"TitleAlignment": "bottom"
 				}
 			]
 		}

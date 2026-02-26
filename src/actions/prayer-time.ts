@@ -176,7 +176,7 @@ export class PrayerTimeAction extends SingletonAction<PrayerSettings> {
 				settings.offsetMinutes,
 			);
 			const title = settings.showPrayerName
-				? `${settings.prayer}\n${formattedTime}`
+				? `${settings.prayer}\n${formattedTime}\n`
 				: formattedTime;
 
 			await action.setTitle(title);
